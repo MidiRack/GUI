@@ -25,11 +25,29 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
-        MainWindow.cpp
+        MainWindow.cpp \
+    QLightButton.cpp \
+    MRKnob.cpp \
+    MRLCD.cpp \
+    MRLCDButton.cpp \
+    MRPresetList.cpp \
+    Potmeter.cpp
 
 HEADERS += \
         MainWindow.hpp \
+    QLightButton.hpp \
+    MRKnob.hpp \
+    MRLCD.hpp \
+    MRLCDButton.hpp \
+    MRPresetList.hpp \
+    PotmeterR.hpp \
     Potmeter.hpp
 
 FORMS += \
-        MainWindow.ui
+        MainWindow.ui \
+    MRPresetList.ui \
+    Potmeter.ui
+
+RESOURCES += \
+    images.qrc \
+    styles.qrc

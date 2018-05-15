@@ -1,19 +1,29 @@
 #ifndef POTMETER_HPP
 #define POTMETER_HPP
 
-#include <QProgressBar>
-#include <QSlider>
+#include <QWidget>
 
-class Potmeter
+#include "MRKnob.hpp"
+#include "MRLCD.hpp"
+
+namespace Ui {
+	class Potmeter;
+}
+
+class Potmeter : public QWidget
 {
-public:
-	QProgressBar* bar;
-	QSlider* slider;
+	Q_OBJECT
 
-	Potmeter(QProgressBar* bar, QSlider* slider) :
-		bar(bar),
-		slider(slider)
-	{ }
+public:
+	explicit Potmeter(QWidget* parent = nullptr);
+	~Potmeter();
+
+private:
+	Ui::Potmeter *ui;
+
+	MRKnob* knob;
+	MRLCD* value;
+	MRLCD* target;
 };
 
 #endif // POTMETER_HPP
