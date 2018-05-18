@@ -49,7 +49,22 @@ void MainWindow::showEvent(QShowEvent* event)
 	presetList = new MRPresetList(this);
 	ui->gridLayout->replaceWidget(ui->presetListHolder, presetList);
 
-	QStringList items;
+	QStringList listItems;
+	QDir().mkdir(QDir::currentPath() + "/presets");
+	QDirIterator it(QDir::currentPath() + "/presets", QStringList("*.preset"), QDir::AllEntries | QDir::NoSymLinks | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+	while (it.hasNext())
+	{
+		listItems.append(it.next().replace(QDir::currentPath() + "/presets/", "").replace(".preset", ""));
+	}
+	presetList->setItems(listItems);
+
+	connect(presetList, &MRPresetList::save, [this]() { this->savePreset(); });
+	connect(presetList, &MRPresetList::load, [this](QString name) { this->loadPreset(name); });
+	connect(presetList, &MRPresetList::renamePreset, [this](QString oldName, QString newName) { this->renamePreset(oldName, newName); });
+
+	loadPotmeters();
+
+	/*QStringList items;
 	items.append("OctaveBrass");
 	items.append("Clarinet");
 	items.append("Claribel");
@@ -108,22 +123,9 @@ void MainWindow::showEvent(QShowEvent* event)
 	connect(freqKnob, &MRKnob::pressed, [this]() { pushUndo(1); });
 	connect(freqKnob, &MRKnob::targetChanged, [this]() { potmeters.at(1)->update(); });
 	connect(freqKnob, &MRKnob::valueChanged, [this]() { potmeters.at(1)->update(); });
-	potmeters.at(1)->update();
+	potmeters.at(1)->update();*/
 
 	connect(&port, SIGNAL(readyRead()), this, SLOT(dataAvailable()));
-
-	QStringList listItems;
-	QDir().mkdir(QDir::currentPath() + "/presets");
-	QDirIterator it(QDir::currentPath() + "/presets", QStringList("*.preset"), QDir::AllEntries | QDir::NoSymLinks | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
-	while (it.hasNext())
-	{
-		listItems.append(it.next().replace(QDir::currentPath() + "/presets/", "").replace(".preset", ""));
-	}
-	presetList->setItems(listItems);
-
-	connect(presetList, &MRPresetList::save, [this]() { this->savePreset(); });
-	connect(presetList, &MRPresetList::load, [this](QString name) { this->loadPreset(name); });
-	connect(presetList, &MRPresetList::renamePreset, [this](QString oldName, QString newName) { this->renamePreset(oldName, newName); });
 
 	event->accept();
 }
@@ -148,7 +150,7 @@ void MainWindow::dataAvailable()
 			int index = QString(line.split(":").first()).toInt();
 			int value = QString(line.split(":").last()).toInt();
 
-			if (index >= 0)
+			if (index >= 0 && index < potmeters.length())
 			{
 				if (value >= 0)
 				{
@@ -158,7 +160,7 @@ void MainWindow::dataAvailable()
 				{
 					potmeters.at(index)->knob->setTarget(value);
 				}
-				potmeters[index]->update();
+				potmeters[index]->doUpdate();
 			}
 			else
 			{
@@ -181,7 +183,7 @@ void MainWindow::setData(int index)
 {
 	QString line = QString::number(index) + ":" + QString::number(potmeters.at(index)->knob->target() * (255.0 / potmeters.at(index)->knob->maximum())) + "\r\n";
 	port.write(line.toStdString().c_str());
-	potmeters.at(index)->update();
+	potmeters.at(index)->doUpdate();
 }
 
 void MainWindow::getData(QString line)
@@ -192,7 +194,7 @@ void MainWindow::getData(QString line)
 		int value = QString(line.split(":").last()).toInt();
 
 		potmeters.at(index)->knob->setTarget(value, true);
-		potmeters.at(index)->update();
+		potmeters.at(index)->doUpdate();
 
 		setData(index);
 	}
@@ -210,11 +212,9 @@ void MainWindow::pushUndo(int index, bool clear)
 		QString line = QString::number(index) + ":" + QString::number(potmeters.at(index)->knob->value());
 		undoItems.push(line);
 	}
-	else
-	{
-		QString line = QString::number(index) + ":" + QString::number(potmeters.at(index)->knob->target());
-		undoItems.push(line);
-	}
+
+	QString line = QString::number(index) + ":" + QString::number(potmeters.at(index)->knob->target());
+	undoItems.push(line);
 }
 
 void MainWindow::pushRedo(int index)
@@ -324,4 +324,98 @@ void MainWindow::setHighlightColor(int r, int g, int b)
 	QPalette pal = palette();
 	pal.setColor(QPalette::Highlight, QColor::fromRgb(r, g, b));
 	QApplication::setPalette(pal);
+}
+#include <QDebug>
+void MainWindow::loadPotmeters()
+{
+	QFile file(QDir::currentPath() + "/potmeters.cfg");
+	file.open(QIODevice::ReadOnly);
+	QTextStream stream(&file);
+
+	int id = -1;
+	bool inBlock = false;
+
+	QString name, unit;
+	double min, max;
+	QStringList items;
+
+	while (!stream.atEnd())
+	{
+		QString line = stream.readLine();
+		if (line.trimmed() == "{" && !inBlock)
+		{
+			id += 1;
+			inBlock = true;
+		}
+		else if (line.trimmed() == "}" && inBlock)
+		{
+			inBlock = false;
+
+			MRKnob* knob = new MRKnob();
+			knob->setName(name);
+			if (!items.isEmpty())
+			{
+				knob->setMaximum(items.length() - 1);
+			}
+
+			MRLCD* value = new MRLCD();
+			value->setName("Value");
+			value->setUnit(unit);
+			value->setItems(items);
+			value->setMinMax(min, max);
+
+			MRLCD* target = new MRLCD();
+			target->setName("Target");
+			target->setUnit(unit);
+			target->setItems(items);
+			target->setMinMax(min, max);
+
+			Potmeter* potmeter = new Potmeter(knob, value, target, ui->knobHolder);
+			potmeters.append(potmeter);
+			ui->gridLayout_2->addWidget(potmeter, floor(id / 3), id % 3);
+
+			connect(knob, &MRKnob::released, [this, id]() { setData(id); });
+			connect(knob, &MRKnob::pressed, [this, id]() { pushUndo(id); });
+			connect(knob, &MRKnob::targetChanged, [this, id]() { potmeters.at(id)->doUpdate(); });
+			connect(knob, &MRKnob::valueChanged, [this, id]() { potmeters.at(id)->doUpdate(); });
+			potmeters.at(id)->doUpdate();
+
+			name = "";
+			unit = "";
+			min = -1;
+			max = -1;
+			items.clear();
+		}
+
+		if (inBlock)
+		{
+			line = line.trimmed();
+
+			QString val = line.right(line.length() - line.indexOf("=") - 1);
+			if (line.startsWith("name="))
+			{
+				name = val;
+			}
+			else if (line.startsWith("unit="))
+			{
+				unit = val;
+			}
+			else if (line.startsWith("limits="))
+			{
+				line = val.mid(1, val.length() - 2).trimmed();
+				QStringList list = line.split(",");
+				min = list.at(0).trimmed().toDouble();
+				max = list.at(1).trimmed().toDouble();
+			}
+			else if (line.startsWith("items="))
+			{
+				line = val.mid(1, val.length() - 2).trimmed();
+				QStringList list = line.split(",");
+				for (int i = 0; i < list.length(); i++)
+				{
+					items.append(list.at(i).trimmed());
+				}
+			}
+		}
+	}
 }

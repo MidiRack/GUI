@@ -52,6 +52,8 @@ public slots:
 	void renamePreset(QString oldName, QString newName);
 
 	void setHighlightColor(int r, int g, int b);
+
+	void loadPotmeters();
 };
 
 #endif // MAINWINDOW_HPP

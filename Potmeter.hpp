@@ -15,15 +15,17 @@ class Potmeter : public QWidget
 	Q_OBJECT
 
 public:
-	explicit Potmeter(QWidget* parent = nullptr);
+	explicit Potmeter(MRKnob* knob, MRLCD* value, MRLCD* target, QWidget* parent = nullptr);
 	~Potmeter();
 
-private:
-	Ui::Potmeter *ui;
+	void doUpdate();
 
 	MRKnob* knob;
 	MRLCD* value;
 	MRLCD* target;
+
+private:
+	Ui::Potmeter *ui;
 };
 
 #endif // POTMETER_HPP

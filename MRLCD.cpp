@@ -121,9 +121,16 @@ void MRLCD::paintEvent(QPaintEvent*)
 		{
 			//Calculate value to be between min and max
 			double val = value();
-			if (min() > 0 && max() > 0)
+			if (min() != 0 && max() != 0)
 			{
-				val = max() / 256.0 * (double)value() + min();
+				if (min() < 0)
+				{
+					val = (max() - min()) / 255.0 * (double)value() + min();
+				}
+				else
+				{
+					val = max() / 255.0 * (double)value() + min();
+				}
 			}
 
 			painter.drawText(textBoxText, QString::number(val));
